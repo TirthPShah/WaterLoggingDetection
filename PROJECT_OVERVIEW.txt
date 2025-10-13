@@ -1,0 +1,785 @@
+================================================================================
+AI-CCTV WATERLOGGING DETECTION & FORECASTING SYSTEM - PROJECT OVERVIEW
+================================================================================
+
+PROJECT INFORMATION
+-------------------
+Name: AI-CCTV Waterlogging Detection System
+GitHub: https://github.com/TirthPShah/WaterLoggingDetection
+Status: Code Complete - Models Untrained
+Date: October 11, 2025
+Python: 3.12
+Platform: macOS ARM (M-series)
+
+================================================================================
+FOLDER STRUCTURE
+================================================================================
+
+windsurf-project/
+│
+├── src/                                    # Core source code modules
+│   ├── __init__.py                        # Package initialization
+│   ├── data_ingestion.py                  # Load CCTV video/images + weather data
+│   ├── preprocessing.py                   # Image enhancement, CLAHE, augmentation
+│   ├── detection_model.py                 # Semantic segmentation (U-Net, DeepLabV3+, FPN, PSPNet)
+│   ├── postprocessing.py                  # Morphological ops, filtering, smoothing
+│   ├── forecasting_model.py               # LSTM/RF/GB for risk prediction
+│   ├── fusion.py                          # Combine detection + forecast with adaptive weights
+│   ├── visualization.py                   # Overlays, heatmaps, videos, plots
+│   ├── export_logger.py                   # JSON/CSV export, logging, monitoring
+│   └── pipeline.py                        # End-to-end integration pipeline
+│
+├── utils/                                  # Utility scripts
+│   ├── create_sample_dataset.py           # Generate synthetic training data
+│   ├── prepare_dataset.py                 # Preprocess and resize downloaded datasets
+│   ├── download_weather.py                # Download weather data from APIs
+│   └── download_datasets.py               # Download flood detection datasets
+│
+├── data/                                   # Data directory (created during usage)
+│   ├── train/images/                      # Training images
+│   ├── train/masks/                       # Training masks
+│   ├── val/images/                        # Validation images
+│   ├── val/masks/                         # Validation masks
+│   ├── test/images/                       # Test images
+│   ├── test/masks/                        # Test masks
+│   ├── weather/weather_data.csv           # Weather time series
+│   └── sample_weather.csv                 # Sample weather data (generated)
+│
+├── models/                                 # Trained model weights (to be created)
+│   ├── detection/                         # Detection model checkpoints
+│   └── forecasting/                       # Forecasting model checkpoints
+│
+├── output/                                 # Output results (created during processing)
+│   ├── frames/                            # Processed video frames
+│   ├── output_video.mp4                   # Annotated output video
+│   ├── results_*.json                     # Detailed results per frame
+│   ├── summary_*.json                     # Summary statistics
+│   └── temporal_plot.png                  # Risk over time visualization
+│
+├── logs/                                   # System logs (auto-created)
+│   └── system_*.log                       # Training and processing logs
+│
+├── wldvenv/                                # Python virtual environment
+│
+├── config.py                               # Central configuration file
+├── demo.py                                 # Interactive demo script
+├── train_detection.py                      # Train waterlogging detection model
+├── train_forecasting.py                    # Train risk forecasting model
+│
+├── requirements.txt                        # Python dependencies
+├── setup.py                                # Package installation script
+├── .gitignore                              # Git ignore patterns
+│
+├── README.md                               # Comprehensive project documentation
+├── QUICKSTART.md                           # 5-minute quick start guide
+├── CONTRIBUTING.md                         # Contribution guidelines
+├── PROJECT_SUMMARY.md                      # High-level project summary
+├── MODEL_TRAINING_REQUIREMENTS.md          # Detailed training requirements (NEW)
+├── DATASET_COLLECTION_GUIDE.md             # Dataset collection guide (NEW)
+└── LICENSE                                 # MIT License
+
+================================================================================
+FILE PURPOSES - DETAILED BREAKDOWN
+================================================================================
+
+CORE MODULES (src/)
+-------------------
+
+1. data_ingestion.py
+   Purpose: Load and manage input data
+   Features:
+   - Load video files (mp4, avi, mov, mkv)
+   - Extract frames from video
+   - Load images from directory
+   - Load weather data (CSV, JSON)
+   - Track frame metadata
+   Status: ✅ Complete
+
+2. preprocessing.py
+   Purpose: Prepare images for model inference
+   Features:
+   - Auto brightness/contrast adjustment
+   - CLAHE for low-light enhancement
+   - Gaussian/bilateral denoising
+   - Image normalization
+   - Data augmentation (flip, rotate, color jitter)
+   Status: ✅ Complete
+
+3. detection_model.py
+   Purpose: Detect waterlogged regions using semantic segmentation
+   Models Supported:
+   - U-Net (lightweight, fast)
+   - DeepLabV3+ (accurate, widely used)
+   - FPN (feature pyramid network)
+   - PSPNet (pyramid scene parsing)
+   Encoders:
+   - ResNet34/50/101
+   - EfficientNet-B0 to B7
+   - MobileNetV2 (for edge devices)
+   Output:
+   - Binary segmentation mask
+   - Probability heatmap
+   - Waterlogged area ratio
+   Status: ✅ Code complete, ❌ Not trained
+
+4. postprocessing.py
+   Purpose: Refine segmentation outputs
+   Features:
+   - Morphological operations (opening, closing)
+   - Small region filtering by area
+   - Connected component analysis
+   - Temporal smoothing across frames
+   - Region feature extraction
+   Status: ✅ Complete
+
+5. forecasting_model.py
+   Purpose: Predict future waterlogging risk
+   Models Supported:
+   - LSTM (2 layers, 64 hidden units)
+   - Random Forest
+   - Gradient Boosting
+   Input Features (12 total):
+   - Weather: rainfall, humidity, temperature, wind, pressure
+   - Detection: waterlogged_ratio, max_prob, region_count
+   - Historical: previous_risk, 6h_rainfall_sum
+   Output:
+   - Risk score (0-1)
+   - Risk level (low/medium/high)
+   Status: ✅ Code complete, ❌ Not trained
+
+6. fusion.py
+   Purpose: Combine detection and forecast predictions
+   Features:
+   - Weighted fusion (configurable weights)
+   - Adaptive weight adjustment based on performance
+   - Temporal smoothing
+   - Risk level classification
+   - Trend analysis
+   Status: ✅ Complete
+
+7. visualization.py
+   Purpose: Create visual outputs
+   Features:
+   - Color-coded risk overlays (green/orange/red)
+   - Probability heatmaps
+   - Annotated information panels
+   - Region contour drawing
+   - Side-by-side comparisons
+   - Temporal risk plots
+   - Video generation from frames
+   Status: ✅ Complete
+
+8. export_logger.py
+   Purpose: Save results and monitor system
+   Features:
+   - Export to JSON/CSV
+   - Per-frame detailed results
+   - Summary statistics
+   - System logging (DEBUG/INFO/WARNING/ERROR)
+   - Performance monitoring (FPS, processing time)
+   Status: ✅ Complete
+
+9. pipeline.py
+   Purpose: Integrate all components into end-to-end workflow
+   Features:
+   - Single-frame processing
+   - Batch video processing
+   - Automatic weather data loading
+   - Results aggregation
+   - Progress tracking
+   Status: ✅ Complete
+
+UTILITY SCRIPTS (utils/)
+-------------------------
+
+1. create_sample_dataset.py
+   Purpose: Generate synthetic waterlogging images for testing
+   Output: Synthetic images with corresponding masks
+   Usage: python utils/create_sample_dataset.py --num-images 100
+   Status: ✅ Complete
+
+2. prepare_dataset.py (NEW)
+   Purpose: Preprocess downloaded flood detection datasets
+   Features:
+   - Resize images to 512×512
+   - Binarize masks
+   - Organize into train/val/test splits
+   Usage: python utils/prepare_dataset.py --input data/raw --output data --split
+   Status: ✅ Complete
+
+3. download_weather.py (NEW)
+   Purpose: Download or generate weather data
+   Features:
+   - Download from OpenWeatherMap API
+   - Generate synthetic weather data
+   - Support for historical and forecast data
+   Usage: python utils/download_weather.py --synthetic --start-date 2023-01-01
+   Status: ✅ Complete
+
+4. download_datasets.py (NEW)
+   Purpose: Download flood detection datasets
+   Supported:
+   - FloodNet (GitHub)
+   - AI4Floods (Kaggle)
+   Usage: python utils/download_datasets.py --dataset floodnet
+   Status: ✅ Complete
+
+TRAINING SCRIPTS
+----------------
+
+1. train_detection.py
+   Purpose: Train semantic segmentation model
+   Features:
+   - Multiple architecture support
+   - Transfer learning from ImageNet
+   - Learning rate scheduling
+   - Model checkpointing
+   - Validation metrics
+   Usage: python train_detection.py --train-images data/train/images --train-masks data/train/masks
+   Status: ✅ Complete, ⏳ Awaiting dataset
+
+2. train_forecasting.py
+   Purpose: Train risk prediction model
+   Features:
+   - LSTM/RF/GB training
+   - Sequence data handling
+   - Feature normalization
+   - Model evaluation
+   Usage: python train_forecasting.py --train data/weather/train.csv
+   Status: ✅ Complete, ⏳ Awaiting dataset
+
+DEMO & INTERFACE
+----------------
+
+demo.py
+   Purpose: Interactive demonstration of the system
+   Features:
+   - Process videos or image directories
+   - Load custom models and weather data
+   - Generate sample data
+   - Save annotated outputs
+   Usage: python demo.py --video video.mp4 --weather weather.csv
+   Status: ✅ Complete
+
+CONFIGURATION
+-------------
+
+config.py
+   Purpose: Centralized configuration for all parameters
+   Contains:
+   - Model settings (architecture, encoder, thresholds)
+   - Data paths (input, output, models)
+   - Preprocessing parameters
+   - Fusion weights
+   - Visualization options
+   - Hardware settings (CPU/GPU)
+   Status: ✅ Complete
+
+DOCUMENTATION
+-------------
+
+1. README.md
+   - Comprehensive project overview
+   - Installation instructions
+   - Usage examples
+   - API reference
+   Size: ~400 lines
+
+2. QUICKSTART.md
+   - 5-minute getting started guide
+   - Quick examples
+   - Common use cases
+
+3. CONTRIBUTING.md
+   - Contribution guidelines
+   - Code style
+   - Development workflow
+   - PR process
+
+4. PROJECT_SUMMARY.md
+   - High-level project overview
+   - Feature list
+   - Technical specifications
+
+5. MODEL_TRAINING_REQUIREMENTS.md (NEW)
+   - Detailed training requirements
+   - Dataset specifications
+   - Step-by-step training guide
+   - Evaluation metrics
+
+6. DATASET_COLLECTION_GUIDE.md (NEW)
+   - Quick reference for data collection
+   - Dataset sources with URLs
+   - Setup instructions
+   - Verification checklist
+
+================================================================================
+CURRENT PROJECT STATUS
+================================================================================
+
+COMPLETED (✅)
+--------------
+✅ All 9 core modules fully implemented
+✅ 4 utility scripts for data handling
+✅ 2 training scripts ready
+✅ Demo interface functional
+✅ Comprehensive documentation
+✅ Virtual environment setup
+✅ Dependencies installed
+✅ Sample data generation working
+✅ Git repository initialized and pushed to GitHub
+
+PENDING (⏳)
+-----------
+⏳ Download real flood detection dataset (FloodNet/AI4Floods)
+⏳ Download or generate weather data
+⏳ Preprocess datasets (resize, split)
+⏳ Train detection model (50 epochs, ~2-4 hours on GPU)
+⏳ Train forecasting model (100 epochs, ~30-60 minutes)
+⏳ Evaluate trained models
+⏳ Generate model performance reports
+
+NOT STARTED (❌)
+----------------
+❌ Deployment (Docker, API, web dashboard)
+❌ Real-time streaming integration
+❌ Mobile/edge optimization
+
+READY TO USE
+------------
+✓ Sample data generation
+✓ Synthetic weather data
+✓ Code testing and validation
+✓ Pipeline demonstration (with untrained models)
+
+================================================================================
+PROGRESS BREAKDOWN BY COMPONENT
+================================================================================
+
+DETECTION SYSTEM
+----------------
+Code: 100% ✅
+Dataset: 0% ❌ (needs FloodNet or AI4Floods)
+Training: 0% ⏳ (ready to train once dataset available)
+Evaluation: 0% ⏳
+
+FORECASTING SYSTEM
+------------------
+Code: 100% ✅
+Weather Data: 50% ⚠️ (synthetic available, real data pending)
+Training: 0% ⏳ (ready to train once data available)
+Evaluation: 0% ⏳
+
+INTEGRATION
+-----------
+Pipeline: 100% ✅
+Fusion: 100% ✅
+Visualization: 100% ✅
+Export: 100% ✅
+
+DOCUMENTATION
+-------------
+Code Documentation: 100% ✅
+User Guides: 100% ✅
+Training Guides: 100% ✅
+API Reference: 90% ✅
+
+OVERALL PROJECT COMPLETION: 75%
+(Code complete, awaiting training data and model training)
+
+================================================================================
+SYSTEM REQUIREMENTS
+================================================================================
+
+SOFTWARE
+--------
+- Python: 3.8+ (currently using 3.12)
+- PyTorch: 2.2.0+ (installed: 2.8.0)
+- CUDA: 11.8+ (optional, for GPU acceleration)
+- OpenCV: 4.8.0+
+- Git: For version control
+
+HARDWARE (TRAINING)
+-------------------
+Minimum:
+- CPU: Intel i7 or AMD Ryzen 7
+- RAM: 16GB
+- GPU: NVIDIA GTX 1080 Ti (8GB VRAM)
+- Storage: 50GB
+
+Recommended:
+- CPU: Intel i9 or AMD Ryzen 9
+- RAM: 32GB
+- GPU: NVIDIA RTX 3090 or A100 (24GB VRAM)
+- Storage: 100GB SSD
+
+HARDWARE (INFERENCE)
+--------------------
+Minimum:
+- CPU: Intel i5 or AMD Ryzen 5
+- RAM: 8GB
+- GPU: NVIDIA GTX 1660 (optional)
+- Storage: 20GB
+
+================================================================================
+DEPENDENCIES (requirements.txt)
+================================================================================
+
+Core Deep Learning:
+- torch >= 2.2.0
+- torchvision >= 0.17.0
+- segmentation-models-pytorch >= 0.3.3
+- timm >= 0.9.0
+
+Computer Vision:
+- opencv-python >= 4.8.0
+- albumentations >= 1.3.0
+- Pillow >= 10.0.0
+
+Data Science:
+- numpy >= 1.24.0
+- pandas >= 2.0.0
+- scipy >= 1.11.0
+- scikit-learn >= 1.3.0
+
+Visualization:
+- matplotlib >= 3.7.0
+- seaborn >= 0.12.0
+
+Utilities:
+- tqdm >= 4.65.0
+- requests >= 2.31.0
+
+================================================================================
+DATASET REQUIREMENTS
+================================================================================
+
+DETECTION DATASET
+-----------------
+Type: Segmentation dataset with waterlogged regions
+Minimum Size: 1000 images
+Recommended Size: 5000+ images
+Format: JPG/PNG images + binary masks
+Resolution: Will be resized to 512×512
+
+Recommended Sources:
+1. FloodNet Dataset
+   - URL: https://github.com/BinaLab/FloodNet
+   - Size: 2,343 images
+   - License: Research use
+   - Download: git clone https://github.com/BinaLab/FloodNet.git
+
+2. AI4Floods Dataset
+   - URL: https://www.kaggle.com/datasets/ratthachat/ai4floods
+   - Size: 5000+ images
+   - License: CC BY 4.0
+   - Download: Requires Kaggle API
+
+WEATHER DATASET
+---------------
+Type: Time series with weather variables
+Minimum Duration: 6 months
+Recommended: 1+ year
+Interval: Hourly
+Format: CSV
+
+Required Columns:
+- timestamp
+- rainfall_mm
+- humidity_percent
+- temperature_c
+- wind_speed_mps (optional)
+- pressure_hpa (optional)
+
+Sources:
+1. OpenWeatherMap API (Free tier: 1000 calls/day)
+2. Indian Meteorological Department (IMD)
+3. NASA POWER API
+4. Synthetic generation (for testing)
+
+================================================================================
+TRAINING INSTRUCTIONS
+================================================================================
+
+STEP 1: COLLECT DATA (15-30 minutes)
+-------------------------------------
+# Download flood detection dataset
+python utils/download_datasets.py --dataset floodnet
+
+# Download or generate weather data
+python utils/download_weather.py --synthetic --start-date 2023-01-01 --end-date 2024-01-01
+
+STEP 2: PREPROCESS DATA (10 minutes)
+-------------------------------------
+# Resize and organize dataset
+python utils/prepare_dataset.py --input data/raw/floodnet --output data --split
+
+STEP 3: TRAIN DETECTION MODEL (2-4 hours on GPU)
+-------------------------------------------------
+python train_detection.py \
+  --train-images data/train/images \
+  --train-masks data/train/masks \
+  --val-images data/val/images \
+  --val-masks data/val/masks \
+  --epochs 50
+
+STEP 4: TRAIN FORECASTING MODEL (30-60 minutes)
+------------------------------------------------
+python train_forecasting.py \
+  --train data/weather/train.csv \
+  --val data/weather/val.csv \
+  --epochs 100
+
+STEP 5: TEST PIPELINE
+----------------------
+python demo.py \
+  --video test_video.mp4 \
+  --detection-model models/detection/best_model.pth \
+  --forecast-model models/forecasting/best_model.pth
+
+================================================================================
+USAGE EXAMPLES
+================================================================================
+
+GENERATE SAMPLE DATA
+--------------------
+python demo.py --create-sample-data
+
+PROCESS VIDEO
+-------------
+python demo.py --video footage.mp4
+
+PROCESS WITH CUSTOM WEATHER DATA
+---------------------------------
+python demo.py --video footage.mp4 --weather weather.csv
+
+PROCESS IMAGE DIRECTORY
+-----------------------
+python demo.py --video images_directory/
+
+USE CUSTOM MODELS
+-----------------
+python demo.py \
+  --video footage.mp4 \
+  --detection-model models/custom_detection.pth \
+  --forecast-model models/custom_forecast.pth
+
+GENERATE SYNTHETIC DATASET
+---------------------------
+python utils/create_sample_dataset.py --num-images 500 --output data/synthetic
+
+================================================================================
+OUTPUT STRUCTURE
+================================================================================
+
+After processing a video, outputs are saved in output/:
+
+output/
+├── output_video.mp4                    # Annotated video with risk overlays
+├── frames/                             # Individual processed frames
+│   ├── frame_000000.jpg
+│   ├── frame_000001.jpg
+│   └── ...
+├── results_TIMESTAMP.json              # Detailed per-frame results
+├── summary_TIMESTAMP.json              # Summary statistics
+└── temporal_plot.png                   # Risk over time visualization
+
+Results JSON structure:
+{
+  "frame_0000": {
+    "detection": {
+      "waterlogged_ratio": 0.15,
+      "max_probability": 0.89,
+      "region_count": 3
+    },
+    "forecast": {
+      "predicted_risk": 0.35,
+      "risk_level": "medium"
+    },
+    "fusion": {
+      "fused_risk": 0.25,
+      "risk_level": "low"
+    }
+  }
+}
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+DETECTION
+---------
+✓ Multiple architectures (U-Net, DeepLabV3+, FPN, PSPNet)
+✓ Pretrained encoders (ResNet, EfficientNet, MobileNet)
+✓ Transfer learning from ImageNet
+✓ Binary and probability outputs
+✓ GPU acceleration
+
+FORECASTING
+-----------
+✓ LSTM neural network
+✓ Machine learning alternatives (RF, GB)
+✓ Weather feature integration
+✓ Historical data aggregation
+✓ Sequence-based prediction
+
+PREPROCESSING
+-------------
+✓ Auto brightness/contrast
+✓ CLAHE for low-light
+✓ Denoising filters
+✓ Data augmentation
+✓ Normalization
+
+POSTPROCESSING
+--------------
+✓ Morphological operations
+✓ Small region filtering
+✓ Connected components
+✓ Temporal smoothing
+✓ Feature extraction
+
+VISUALIZATION
+-------------
+✓ Color-coded overlays
+✓ Probability heatmaps
+✓ Annotated panels
+✓ Temporal plots
+✓ Video generation
+
+EXPORT & LOGGING
+----------------
+✓ JSON/CSV export
+✓ Detailed results
+✓ Summary statistics
+✓ System logging
+✓ Performance monitoring
+
+================================================================================
+NEXT IMMEDIATE STEPS
+================================================================================
+
+1. DOWNLOAD DATASETS (Priority: HIGH)
+   - FloodNet from GitHub
+   - Weather data (synthetic or real)
+   - Estimated time: 30 minutes
+
+2. PREPROCESS DATA (Priority: HIGH)
+   - Resize images to 512×512
+   - Split into train/val/test
+   - Estimated time: 15 minutes
+
+3. TRAIN DETECTION MODEL (Priority: HIGH)
+   - Run train_detection.py
+   - Monitor training progress
+   - Estimated time: 2-4 hours (GPU) or 12-24 hours (CPU)
+
+4. TRAIN FORECASTING MODEL (Priority: HIGH)
+   - Run train_forecasting.py
+   - Evaluate on validation set
+   - Estimated time: 30-60 minutes
+
+5. EVALUATE MODELS (Priority: MEDIUM)
+   - Test on held-out test set
+   - Generate performance reports
+   - Estimated time: 30 minutes
+
+6. FULL PIPELINE TEST (Priority: MEDIUM)
+   - Run demo with trained models
+   - Process sample videos
+   - Verify output quality
+   - Estimated time: 15 minutes
+
+7. DOCUMENTATION (Priority: LOW)
+   - Add model cards
+   - Update README with trained model info
+   - Create deployment guide
+   - Estimated time: 1 hour
+
+================================================================================
+ADDITIONAL FEATURES (FUTURE ENHANCEMENTS)
+================================================================================
+
+DEPLOYMENT
+----------
+- Docker containerization
+- REST API with FastAPI
+- Web dashboard (Streamlit/Dash)
+- Real-time streaming (RTSP/RTMP)
+- Alert system (Telegram/Twilio)
+
+OPTIMIZATION
+------------
+- Model quantization
+- TensorRT optimization
+- ONNX export
+- Mobile deployment (TFLite)
+- Edge device support
+
+FEATURES
+--------
+- Multi-camera coordination
+- 3D depth estimation
+- Satellite imagery integration
+- Drainage system mapping
+- Historical trend analysis
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+COMMON ISSUES
+-------------
+
+1. "ModuleNotFoundError: No module named 'matplotlib'"
+   Solution: pip install matplotlib
+
+2. "CUDA out of memory"
+   Solution: Reduce batch size or image size in config.py
+
+3. Video won't process
+   Solution: Convert to compatible format with ffmpeg
+
+4. Poor detection quality
+   Solution: Train model on similar camera angles/conditions
+
+5. Kaggle API not working
+   Solution: Check ~/.kaggle/kaggle.json permissions (chmod 600)
+
+PERFORMANCE TIPS
+----------------
+- Use GPU for training (20-30x faster)
+- Enable mixed precision training
+- Use smaller image sizes for faster inference
+- Process fewer frames (set FRAME_SKIP in config.py)
+- Use MobileNetV2 encoder for speed
+
+================================================================================
+CONTACT & SUPPORT
+================================================================================
+
+GitHub: https://github.com/TirthPShah/WaterLoggingDetection
+Issues: Open an issue on GitHub repository
+Documentation: See README.md, QUICKSTART.md, and other .md files
+
+================================================================================
+LICENSE
+================================================================================
+
+MIT License - See LICENSE file for details
+
+================================================================================
+CHANGELOG
+================================================================================
+
+2025-10-11: Initial project creation
+- All core modules implemented
+- Documentation completed
+- Utility scripts added
+- Training requirements documented
+- Dataset collection guide created
+- Repository pushed to GitHub
+
+================================================================================
+END OF PROJECT OVERVIEW
+================================================================================
