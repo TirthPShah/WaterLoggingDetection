@@ -15,12 +15,37 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from pathlib import Path
 import json
+import numpy as np
 
 from src.flood_classifier import create_model
 from src.flood_preprocessing import get_flood_detection_transforms
 from src.flood_evaluator import FloodDetectionEvaluator, get_model_size
 from src.gradcam_visualizer import FloodGradCAMVisualizer
 from src.model_comparator import ModelComparator
+
+
+def make_serializable(obj):
+    """
+    Convert numpy types to native Python types for JSON serialization.
+    
+    Args:
+        obj: Object to convert
+        
+    Returns:
+        JSON-serializable object
+    """
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.float32, np.float64, np.floating)):
+        return float(obj)
+    elif isinstance(obj, (np.int32, np.int64, np.integer)):
+        return int(obj)
+    elif isinstance(obj, dict):
+        return {k: make_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [make_serializable(v) for v in obj]
+    else:
+        return obj
 
 
 def evaluate_single_model(
@@ -117,7 +142,7 @@ def evaluate_single_model(
     
     # Save complete results
     with open(output_dir / 'complete_results.json', 'w') as f:
-        json.dump(full_results, f, indent=2)
+        json.dump(make_serializable(full_results), f, indent=2)
     
     print(f"\n✅ Evaluation complete for {model_name}")
     print(f"   Results saved to: {output_dir}")
