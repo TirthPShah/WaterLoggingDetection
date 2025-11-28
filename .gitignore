@@ -3,3 +3,5 @@ flood_model.pth
 dataset
 FloodedAnnotations
 NonFloodedAnnotations
+
+weather_xgb.model
