@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+import argparse
 from model_trainer import FloodAwareNet
 
 # --- CONFIG ---
@@ -169,5 +170,105 @@ def analyze_random_samples():
     print("Saved detailed analysis to 'model_quantification_analysis.png'.")
     plt.show()
 
+
+def analyze_single_image(image_path: str):
+    # Resolve path (allow passing paths relative to ROOT_DIR)
+    if not os.path.exists(image_path):
+        candidate = os.path.join(ROOT_DIR, image_path)
+        if os.path.exists(candidate):
+            image_path = candidate
+
+    if not os.path.exists(image_path):
+        print(f"Error: image not found at '{image_path}'")
+        return
+
+    # 1. Load Model
+    print(f"Loading model on {DEVICE}...")
+    model = FloodAwareNet().to(DEVICE)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    model.eval()
+
+    # Grad-CAM hook
+    grad_cam = GradCAM(model, model.encoder4)
+
+    # Transform
+    transform = A.Compose([
+        A.Resize(320, 320),
+        A.Normalize(),
+        ToTensorV2()
+    ])
+
+    original_img = cv2.imread(image_path)
+    if original_img is None:
+        print(f"Failed to read image: {image_path}")
+        return
+    original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
+    h, w = original_img.shape[:2]
+
+    augmented = transform(image=original_img, mask=np.zeros((h, w)))
+    img_tensor = augmented['image'].unsqueeze(0).to(DEVICE)
+
+    model.zero_grad()
+    img_tensor.requires_grad = True
+
+    c_logit, m_logit, features = model(img_tensor)
+
+    pred_prob = torch.sigmoid(c_logit).item()
+    pred_mask = torch.sigmoid(m_logit).squeeze().detach().cpu().numpy()
+
+    binary_mask = (pred_mask > 0.5).astype(np.float32)
+    severity_index = (np.sum(binary_mask) / binary_mask.size) * 100
+
+    # Backward for Grad-CAM
+    c_logit.backward(retain_graph=True)
+    cam_heatmap = grad_cam.generate()
+
+    # Visuals
+    cam_resized = cv2.resize(cam_heatmap, (w, h))
+    cam_color = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
+    cam_overlay = cv2.addWeighted(original_img, 0.6, cam_color, 0.4, 0)
+
+    seg_resized = cv2.resize(pred_mask, (w, h))
+    seg_overlay = np.zeros_like(original_img)
+    seg_overlay[:, :, 0] = np.uint8(255 * seg_resized)
+
+    final_overlay = cv2.addWeighted(original_img, 0.7, seg_overlay, 0.5, 0)
+
+    pred_label = "Flooded" if pred_prob > 0.5 else "Dry"
+
+    # Plot single row (1 x 4)
+    fig, axes = plt.subplots(1, 4, figsize=(16, 5))
+
+    axes[0].imshow(original_img)
+    axes[0].set_title(f"Image\nPred: {pred_label} ({pred_prob:.2f})")
+    axes[0].axis('off')
+
+    axes[1].imshow(final_overlay)
+    axes[1].set_title(f"Segmentation\nSeverity: {severity_index:.1f}%")
+    axes[1].axis('off')
+
+    axes[2].imshow(cam_overlay)
+    axes[2].set_title("Grad-CAM")
+    axes[2].axis('off')
+
+    axes[3].imshow(cam_resized, cmap='jet', alpha=0.5)
+    axes[3].imshow(seg_resized, cmap='binary', alpha=0.5)
+    axes[3].set_title("Overlap")
+    axes[3].axis('off')
+
+    plt.tight_layout()
+    base = os.path.splitext(os.path.basename(image_path))[0]
+    out_name = f"single_analysis_{base}.png"
+    plt.savefig(out_name)
+    print(f"Saved single-image analysis to '{out_name}'")
+    plt.show()
+
 if __name__ == "__main__":
-    analyze_random_samples()
+    parser = argparse.ArgumentParser(description="Analyze model: run random samples or a single image.")
+    parser.add_argument('image', nargs='?', help='Optional path to a single image to analyze')
+    args = parser.parse_args()
+
+    if args.image:
+        analyze_single_image(args.image)
+    else:
+        analyze_random_samples()

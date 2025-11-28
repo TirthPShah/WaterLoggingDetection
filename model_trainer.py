@@ -64,22 +64,22 @@ class FloodDataset(Dataset):
 
         return image, mask.unsqueeze(0), label
 
-# --- 2. THE DUAL-BRANCH MODEL ---
+# --- 2. THE DUAL-BRANCH MODEL (Updated for Control) ---
 class FloodAwareNet(nn.Module):
-    def __init__(self):
+    def __init__(self, bg_gain=0.0005):
         super(FloodAwareNet, self).__init__()
+        self.bg_gain = bg_gain # The "Leak" control (0.05 = 5%)
         
         # A. ENCODER (ResNet50)
-        # We capture features at different scales for the U-Net
         base_model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         self.encoder0 = nn.Sequential(base_model.conv1, base_model.bn1, base_model.relu)
         self.pool0 = base_model.maxpool
-        self.encoder1 = base_model.layer1 # 256 channels
-        self.encoder2 = base_model.layer2 # 512 channels
-        self.encoder3 = base_model.layer3 # 1024 channels
-        self.encoder4 = base_model.layer4 # 2048 channels (Bottleneck)
+        self.encoder1 = base_model.layer1 
+        self.encoder2 = base_model.layer2 
+        self.encoder3 = base_model.layer3 
+        self.encoder4 = base_model.layer4 
         
-        # B. SEGMENTATION DECODER (Simple U-Net style)
+        # B. SEGMENTATION DECODER
         self.upconv4 = nn.ConvTranspose2d(2048, 1024, kernel_size=2, stride=2)
         self.iconv4 = self.conv_block(1024 + 1024, 1024)
         
@@ -89,14 +89,13 @@ class FloodAwareNet(nn.Module):
         self.upconv2 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
         self.iconv2 = self.conv_block(256 + 256, 256)
         
-        self.upconv1 = nn.ConvTranspose2d(256, 64, kernel_size=2, stride=2) # Note: encoder0 is 64
+        self.upconv1 = nn.ConvTranspose2d(256, 64, kernel_size=2, stride=2) 
         self.iconv1 = self.conv_block(64 + 64, 64)
         
-        self.final_up = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2) # to 256x256
+        self.final_up = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2) 
         self.final_conv = nn.Conv2d(32, 1, kernel_size=1) 
-        # Note: We will interpolate the final output to match input size exactly if needed
         
-        # C. CLASSIFICATION HEAD (Gated)
+        # C. CLASSIFICATION HEAD
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Sequential(
             nn.Linear(2048, 512),
@@ -116,7 +115,7 @@ class FloodAwareNet(nn.Module):
         )
 
     def forward(self, x):
-        # 1. Encoder Pass
+        # 1. Encoder
         e0 = self.encoder0(x)
         p0 = self.pool0(e0)
         e1 = self.encoder1(p0)
@@ -124,7 +123,7 @@ class FloodAwareNet(nn.Module):
         e3 = self.encoder3(e2)
         bottleneck = self.encoder4(e3)
 
-        # 2. Decoder Pass
+        # 2. Decoder
         d4 = self.upconv4(bottleneck)
         d4 = torch.cat((d4, e3), dim=1)
         d4 = self.iconv4(d4)
@@ -148,13 +147,13 @@ class FloodAwareNet(nn.Module):
         mask_logit = F.interpolate(mask_logit, size=x.shape[2:], mode='bilinear', align_corners=False)
         pred_mask = torch.sigmoid(mask_logit)
 
-        # 3. RESIDUAL GATING (The Fix)
+        # 3. CONTROLLED GATING (The Tweak)
         mask_small = F.interpolate(pred_mask, size=bottleneck.shape[2:], mode='area')
         
-        # Formula: Features + (Features * Mask)
-        # Result: Background = 1x Features, ROI = 2x Features.
-        # This guarantees the classifier never sees "zeros".
-        gated_features = bottleneck + (bottleneck * mask_small)
+        # The 5% Logic:
+        # Background becomes: bottleneck * bg_gain (0.05)
+        # ROI becomes:        bottleneck * (bg_gain + 1.0) (1.05)
+        gated_features = (bottleneck * self.bg_gain) + (bottleneck * mask_small)
         
         pooled = self.global_pool(gated_features)
         pooled = pooled.flatten(1)
